@@ -41,8 +41,11 @@ Plugins page.
 ## Configure the upstream
 
 ```bash
-magpie plugin options codex-relay '{"baseURL":"https://codex-relay.oaifree.com/backend-api/codex"}'
+magpie plugin options magpie-codex-relay '{"baseURL":"https://codex-relay.oaifree.com/backend-api/codex"}'
 ```
+
+(`plugin options` finds a plugin by package name or full spec; `codex-relay` is the
+provider id it serves, which `plugin login` and `provider models` take.)
 
 | Key | Default | Meaning |
 |---|---|---|

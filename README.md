@@ -37,8 +37,11 @@ magpie plugin login codex-relay     # 无需输入：直接借用 magpie 里的 
 ## 配置上游
 
 ```bash
-magpie plugin options codex-relay '{"baseURL":"https://codex-relay.oaifree.com/backend-api/codex"}'
+magpie plugin options magpie-codex-relay '{"baseURL":"https://codex-relay.oaifree.com/backend-api/codex"}'
 ```
+
+（`plugin options` 按包名或完整 spec 找插件；`codex-relay` 是它内部的 provider id，
+`plugin login` / `provider models` 用那个 id，`plugin options` 不用。）
 
 | 键 | 默认 | 说明 |
 |---|---|---|
