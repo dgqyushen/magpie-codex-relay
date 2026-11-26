@@ -146,8 +146,61 @@ function upstreamBase(options) {
 }
 
 function codexVersion(options) {
-  const v = option(options, "codexVersion", DEFAULT_VERSION)
-  return /^\d+\.\d+\.\d+$/.test(String(v)) ? String(v) : DEFAULT_VERSION
+  // 用户显式指定就用它
+  const asked = option(options, "codexVersion", "")
+  if (/^\d+\.\d+\.\d+$/.test(String(asked))) return String(asked)
+  // 否则跟 magpie 自己维护的 client_version 保持一致
+  return magpieCodexVersion() ?? DEFAULT_VERSION
+}
+
+// magpieCodexVersion 读 magpie 自己写下的 Codex client_version。
+// magpie 拉模型目录时会把它问上游用的版本记在
+// <config>/cache/magpie/models/codex*.json 的 asked 字段里，
+// 插件跟它对齐，就永远和 magpie 的内置 codex 说同一个版本，
+// 不用把版本号写死在插件里。
+// 多个文件取最新的 fetched；读不到返回 null，由调用方兜底。
+function magpieCodexVersion() {
+  const dir = cacheDir()
+  if (!dir) return null
+  let names = []
+  try {
+    names = readdirSync(dir)
+  } catch {
+    return null
+  }
+  let best = null
+  let bestAt = -Infinity
+  for (const name of names) {
+    if (!/^codex(@[0-9a-f]+)?\.json$/i.test(name)) continue
+    let d
+    try {
+      d = JSON.parse(readFileSync(join(dir, name), "utf8"))
+    } catch {
+      continue
+    }
+    const v = typeof d?.asked === "string" ? d.asked.trim() : ""
+    if (!/^\d+\.\d+\.\d+$/.test(v)) continue
+    const at = Date.parse(d?.fetched ?? "") || 0
+    if (at >= bestAt) {
+      best, bestAt = v, at
+    }
+  }
+  return best
+}
+
+// cacheDir 是 magpie 的缓存目录。容器里是 /config/cache/magpie，
+// 桌面版是 ~/.cache/magpie 一类；MAGPIE_CACHE 或 XDG_CACHE_HOME 可覆盖。
+function cacheDir() {
+  const env = (process.env.MAGPIE_CACHE || "").trim()
+  if (env && isAbsolute(env)) return join(env, "models")
+  const xdg = (process.env.XDG_CACHE_HOME || "").trim()
+  if (xdg && isAbsolute(xdg)) return join(xdg, "magpie", "models")
+  const home = process.env.HOME || homedir()
+  const candidates = [join(home, "cache", "magpie", "models"), join(home, ".cache", "magpie", "models")]
+  for (const c of candidates) {
+    if (existsSync(c)) return c
+  }
+  return candidates[0]
 }
 
 // ---- 转发 -------------------------------------------------------------------

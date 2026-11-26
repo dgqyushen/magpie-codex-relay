@@ -1,6 +1,6 @@
 {
   "name": "magpie-codex-relay",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "复用 magpie 里已登录的 ChatGPT/Codex 订阅，把请求改道到第三方 Codex 网关（openai_base_url 那类中转站）",
   "type": "module",
   "main": "./opencode.mjs",
@@ -11,7 +11,9 @@
     "index.mjs",
     "opencode.mjs",
     "opencode2.mjs",
-    "README.md"
+    "README.md",
+    "README.en.md",
+    "LICENSE"
   ],
   "keywords": [
     "magpie",
@@ -31,8 +33,7 @@
   "magpie": {
     "icon": "codex-color",
     "options": {
-      "baseURL": "https://codex-relay.oaifree.com/backend-api/codex",
-      "codexVersion": "0.172.0"
+      "baseURL": "https://codex-relay.oaifree.com/backend-api/codex"
     }
   },
   "repository": {
