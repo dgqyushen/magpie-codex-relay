@@ -1,0 +1,47 @@
+{
+  "name": "magpie-codex-relay",
+  "version": "0.1.0",
+  "description": "复用 magpie 里已登录的 ChatGPT/Codex 订阅，把请求改道到第三方 Codex 网关（openai_base_url 那类中转站）",
+  "type": "module",
+  "main": "./opencode.mjs",
+  "exports": {
+    ".": "./opencode2.mjs"
+  },
+  "files": [
+    "index.mjs",
+    "opencode.mjs",
+    "opencode2.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "magpie",
+    "magpie-plugin",
+    "codex",
+    "relay",
+    "gateway",
+    "chatgpt",
+    "openai",
+    "opencode",
+    "opencode-plugin"
+  ],
+  "license": "MIT",
+  "engines": {
+    "magpie": ">=0.1.1318"
+  },
+  "magpie": {
+    "icon": "codex-color",
+    "options": {
+      "baseURL": "https://codex-relay.oaifree.com/backend-api/codex",
+      "codexVersion": "0.172.0"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dgqyushen/magpie-codex-relay.git"
+  },
+  "bugs": {
+    "url": "https://github.com/dgqyushen/magpie-codex-relay/issues"
+  },
+  "homepage": "https://github.com/dgqyushen/magpie-codex-relay#readme",
+  "author": "YuShen Qian"
+}
