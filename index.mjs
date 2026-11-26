@@ -182,7 +182,8 @@ function magpieCodexVersion() {
     if (!/^\d+\.\d+\.\d+$/.test(v)) continue
     const at = Date.parse(d?.fetched ?? "") || 0
     if (at >= bestAt) {
-      best, bestAt = v, at
+      best = v
+      bestAt = at
     }
   }
   return best
@@ -263,9 +264,65 @@ export async function CodexRelayPlugin(input, options = {}) {
   const base = () => upstreamBase(options)
   const version = () => codexVersion(options)
 
-  // listModels 问上游要模型目录。magpie 的 models 钩子拿到的是账号目录，
-  // 这里按 Codex 自己的 /models 形状转成插件模型。
+  // listModels 是模型目录：**跟官方 codex provider 保持一致**，不从上游自己编。
+  //
+  // 为什么要跟随官方而不是问中转站：中转站的 /models 未必完整、也未必
+  // 与 magpie 内置 codex 列的一致；用户在供应商列表里看到两个 provider
+  // 的模型对不上会很困惑。所以这里读 magpie 自己为官方 codex 拉下的目录
+  // （<config>/cache/magpie/models/codex*.json），原样搬过来。
+  //
+  // 读不到官方目录时才退回问上游；两者都没有就抛错，让 magpie 保留上次的。
   async function listModels(signal) {
+    const official = officialModels()
+    if (official) return official
+    return await listModelsFromUpstream(signal)
+  }
+
+  // officialModels 把 magpie 为官方 codex 缓存的目录转成插件模型表。
+  // 缓存里每条是 magpie 自己的形状：{ID, Name, Efforts, Context, Images…}。
+  // 读不到返回 null。
+  function officialModels() {
+    const dir = cacheDir()
+    let names = []
+    try {
+      names = readdirSync(dir)
+    } catch {
+      return null
+    }
+    let best = null
+    let bestAt = -Infinity
+    for (const name of names) {
+      if (!/^codex(@[0-9a-f]+)?\.json$/i.test(name)) continue
+      let d
+      try {
+        d = JSON.parse(readFileSync(join(dir, name), "utf8"))
+      } catch {
+        continue
+      }
+      if (!Array.isArray(d?.models) || d.models.length === 0) continue
+      const at = Date.parse(d?.fetched ?? "") || 0
+      if (at >= bestAt) {
+        best = d
+        bestAt = at
+      }
+    }
+    if (!best) return null
+    const out = {}
+    for (const m of best.models) {
+      const id = typeof m?.ID === "string" ? m.ID : typeof m?.id === "string" ? m.id : ""
+      if (!id) continue
+      out[id] = modelEntry(id, {
+        name: typeof m?.Name === "string" && m.Name ? m.Name : id,
+        levels: Array.isArray(m?.Efforts) ? m.Efforts.filter((x) => typeof x === "string" && x) : [],
+        images: m?.Images === true || m?.ImageInput === true,
+        context: Number(m?.Context) || Number(m?.MaxContext) || 0,
+      })
+    }
+    return Object.keys(out).length ? out : null
+  }
+
+  // listModelsFromUpstream 问中转站自己的 /models（官方目录读不到时才用）。
+  async function listModelsFromUpstream(signal) {
     const login = currentLogin()
     if (!login) throw Object.assign(new Error("magpie 里还没有 ChatGPT 的 Codex 登录：先在 magpie 里登录 Codex 订阅"), { signIn: "expired" })
     const url = base() + "/models?client_version=" + encodeURIComponent(version())
@@ -288,28 +345,37 @@ export async function CodexRelayPlugin(input, options = {}) {
       const levels = Array.isArray(m.supported_reasoning_levels)
         ? m.supported_reasoning_levels.map((x) => (typeof x === "string" ? x : x?.effort)).filter((x) => typeof x === "string" && x)
         : []
-      const images = Array.isArray(m.input_modalities) && m.input_modalities.includes("image")
-      const context = Number(m.context_window) || 0
-      const output = Number(m.max_output_tokens) || 0
-      out[id] = {
-        id,
+      out[id] = modelEntry(id, {
         name: typeof m.display_name === "string" && m.display_name ? m.display_name : id,
-        npm: NPM,
-        url: base(),
-        limit: { context, output },
-        capabilities: {
-          temperature: false,
-          reasoning: levels.length > 0,
-          attachment: images,
-          toolcall: true,
-          input: { text: true, image: images, audio: false, video: false, pdf: false },
-          output: { text: true, image: false, audio: false, video: false, pdf: false },
-          interleaved: false,
-        },
-        variants: levels.length ? Object.fromEntries(levels.map((l) => [l, {}])) : {},
-      }
+        levels,
+        images: Array.isArray(m.input_modalities) && m.input_modalities.includes("image"),
+        context: Number(m.context_window) || 0,
+        output: Number(m.max_output_tokens) || 0,
+      })
     }
     return out
+  }
+
+  // modelEntry 是一个插件模型条目。两条来源（官方目录、上游 /models）
+  // 都走这里，形状才对得上。
+  function modelEntry(id, { name, levels, images, context, output = 0 }) {
+    return {
+      id,
+      name,
+      npm: NPM,
+      url: base(),
+      limit: { context, output },
+      capabilities: {
+        temperature: false,
+        reasoning: levels.length > 0,
+        attachment: images,
+        toolcall: true,
+        input: { text: true, image: images, audio: false, video: false, pdf: false },
+        output: { text: true, image: false, audio: false, video: false, pdf: false },
+        interleaved: false,
+      },
+      variants: levels.length ? Object.fromEntries(levels.map((l) => [l, {}])) : {},
+    }
   }
 
   return {
@@ -320,6 +386,11 @@ export async function CodexRelayPlugin(input, options = {}) {
       p.name ??= "Codex Relay"
       p.npm ??= NPM
       p.api ??= base()
+      // 图标用 magpie 自带的 openai：与官方 codex 订阅同一个牌子，
+      // 用户在供应商列表里一眼看出这是同一家。magpie 的合法内置图标名
+      // 由 provider.PluginIcon 认（openai / claude-color / gemini-color…），
+      // 写别的名字会退回 generic。
+      p.icon ??= "openai"
       p.models ??= {}
     },
 
@@ -328,9 +399,13 @@ export async function CodexRelayPlugin(input, options = {}) {
       // models 是账号的模型目录：向上游的 Codex /models 要一次，
       // 转成插件模型表。magpie 会缓存这份目录，并据它生成模型选择器。
       // 读不到就抛出，magpie 会保留上一次的目录并标记原因。
+      //
+      // 注意不要合并 provider.models（magpie 传进来的上次目录）：那样
+      // 官方下架的模型会一直留在列表里（实测多出 gpt-reserve、
+      // codex-auto-review 两个）。要求是「无脑跟着官方」，所以这里
+      // 只返回这次读到的官方目录。
       async models(provider, ctx) {
-        const listed = await listModels(ctx?.signal)
-        return { ...(provider.models ?? {}), ...listed }
+        return await listModels(ctx?.signal)
       },
     },
 
@@ -393,4 +468,4 @@ export async function CodexRelayPlugin(input, options = {}) {
 
 // magpie 在 host 里直接调用插件函数；OpenCode 侧不需要这个包，
 // 但导出形状保持一致，避免宿主按 exports 规则误判。
-export default { id: "@magpie-community/opencode-codex-relay-auth", server: CodexRelayPlugin }
+export default { id: "magpie-codex-relay", server: CodexRelayPlugin }
