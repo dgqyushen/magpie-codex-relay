@@ -386,9 +386,6 @@ export async function CodexRelayPlugin(input, options = {}) {
       p.name ??= "Codex Relay"
       p.npm ??= NPM
       p.api ??= base()
-      // 图标名在 config 这里写只是给读取 provider 配置的人看的；
-      // magpie UI 真正认的是 auth.icon（见下方 auth 段），两处保持一致。
-      p.icon ??= "codex-color"
       p.models ??= {}
     },
 
@@ -409,10 +406,6 @@ export async function CodexRelayPlugin(input, options = {}) {
 
     auth: {
       provider: ID,
-      // magpie UI 的 provider 图标读 auth.icon（对照官方社区插件 nous 的
-      // auth.icon="nousresearch"）。codex-color 是官方 codex provider 在用的
-      // 内置图标名，二进制里有 codex-color.svg。缺这个字段 UI 会退回 generic。
-      icon: "codex-color",
       // 不声明 refresh / rotating：插件不参与 token 续期，只借一次。
       // keepAlive 也就无从谈起，magpie 不会为它排后台续期。
       keepAlive: false,
