@@ -31,7 +31,7 @@
     "magpie": ">=0.1.1318"
   },
   "magpie": {
-    "icon": "openai",
+    "icon": "codex-color",
     "options": {
       "baseURL": "https://codex-relay.oaifree.com/backend-api/codex"
     }
